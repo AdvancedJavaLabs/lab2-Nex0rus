@@ -2,6 +2,7 @@ package org.itmo.distributed.component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.itmo.distributed.dto.ResultMessage;
+import org.itmo.distributed.service.SentenceSortService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Component
 @Profile("aggregator")
 public class Aggregator {
+    private static final Integer TOP_N = 5;
 
     private final Map<String, AggregatedData> storage = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
@@ -44,7 +46,7 @@ public class Aggregator {
 
             data.textParts.put(result.chunkIndex(), result.modifiedText());
 
-            data.allSentences.addAll(result.sortedSentences());
+            data.sortedSentenceLists.add(result.sortedSentences());
             
             final AggregatedData finalData = data;
             result.wordFrequencies().forEach((word, count) -> 
@@ -65,26 +67,19 @@ public class Aggregator {
     private void finalizeTask(String taskId, AggregatedData data) {
         long duration = System.currentTimeMillis() - startTime;
 
-        StringBuilder fullModifiedText = new StringBuilder();
+        StringBuilder modifiedTextBuilder = new StringBuilder();
         for (int i = 0; i < data.totalChunks; i++) {
             String part = data.textParts.get(i);
             if (part != null) {
-                fullModifiedText.append(part).append(" ");
+                modifiedTextBuilder.append(part).append(" ");
             }
         }
 
-        List<String> globalSortedSentences = new ArrayList<>(data.allSentences);
-        globalSortedSentences.sort(Comparator.comparingInt(String::length));
+        String modifiedText = modifiedTextBuilder.toString().trim();
 
-        Map<String, Integer> topNWords = data.wordFrequency.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(5)
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (e1, e2) -> e1,
-                        LinkedHashMap::new
-                ));
+        List<String> globalSortedSentences = SentenceSortService.mergeSortedSentences(data.sortedSentenceLists);
+
+        Map<String, Integer> topNWords = getTopNWords(data.wordFrequency);
 
         FinalReport report = new FinalReport(
                 taskId,
@@ -92,7 +87,7 @@ public class Aggregator {
                 data.totalWords,
                 new SentimentReport(data.totalPositive, data.totalNegative),
                 topNWords,
-                fullModifiedText.toString().trim(),
+                modifiedText,
                 globalSortedSentences
         );
 
@@ -108,6 +103,18 @@ public class Aggregator {
         startTime = 0;
     }
 
+    private static Map<String, Integer> getTopNWords(Map<String, Integer> wordFrequencies) {
+        return wordFrequencies.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(TOP_N)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
+    }
+
     private static class AggregatedData {
         int totalChunks;
         long totalWords = 0;
@@ -115,7 +122,7 @@ public class Aggregator {
         long totalNegative = 0;
         final Map<String, Integer> wordFrequency = new ConcurrentHashMap<>();
         final Map<Integer, String> textParts = new ConcurrentSkipListMap<>();
-        final List<String> allSentences = new CopyOnWriteArrayList<>();
+        final List<List<String>> sortedSentenceLists = new CopyOnWriteArrayList<>();
         final AtomicInteger processedChunks = new AtomicInteger(0);
     }
 
@@ -127,7 +134,9 @@ public class Aggregator {
         Map<String, Integer> topNWords,
         String modifiedText,
         List<String> sortedSentences
-    ) {}
+    ) {
+    }
     
-    private record SentimentReport(long positiveSentences, long negativeSentences) {}
+    private record SentimentReport(long positiveSentences, long negativeSentences) {
+    }
 }
