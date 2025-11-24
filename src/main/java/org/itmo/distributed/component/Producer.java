@@ -5,6 +5,8 @@ import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.util.CoreMap;
 import org.itmo.distributed.dto.TaskMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
@@ -25,6 +27,7 @@ import java.util.stream.Stream;
 @Component
 @Profile("producer")
 public class Producer implements CommandLineRunner {
+    private static final Logger logger = LoggerFactory.getLogger(Producer.class);
     private static final int SENTENCES_PER_TASK = 50;
 
     private final RabbitTemplate rabbitTemplate;
@@ -45,7 +48,7 @@ public class Producer implements CommandLineRunner {
         props.setProperty("annotators", "tokenize, ssplit");
         this.pipeline = new StanfordCoreNLP(props);
 
-        System.out.println("Initialized producer with uuid: " + UUID.randomUUID());
+        logger.info("Initialized producer with uuid: {}", UUID.randomUUID());
     }
 
     @Override
@@ -56,21 +59,21 @@ public class Producer implements CommandLineRunner {
         
         if (sourceArgs != null && !sourceArgs.isEmpty()) {
             String sourcePath = sourceArgs.getFirst();
-            System.out.println("Reading text from: " + sourcePath);
+            logger.info("Reading text from: {}", sourcePath);
             fullText = readText(sourcePath);
         } else {
-            System.out.println("No source provided (use --source=<path>).");
+            logger.warn("No source provided (use --source=<path>).");
             return;
         }
 
         if (fullText.isEmpty()) {
-            System.out.println("Text is empty. Exiting.");
+            logger.warn("Text is empty. Exiting.");
             return;
         }
 
-        System.out.println("Splitting text into sentences...");
+        logger.info("Splitting text into sentences...");
         List<String> sentences = splitIntoSentences(fullText);
-        System.out.println("Found " + sentences.size() + " sentences.");
+        logger.info("Found {} sentences.", sentences.size());
 
         List<String> chunks = new ArrayList<>();
         StringBuilder currentChunk = new StringBuilder();
@@ -92,16 +95,14 @@ public class Producer implements CommandLineRunner {
         int total = chunks.size();
         
         long startTime = System.currentTimeMillis();
-        System.out.println(
-                "Sending " + total + " tasks (chunks of ~" + SENTENCES_PER_TASK + " sentences) for TaskID: " + taskId
-        );
+        logger.info("Sending {} tasks (chunks of ~{} sentences) for TaskID: {}", total, SENTENCES_PER_TASK, taskId);
 
         for (int i = 0; i < total; i++) {
             TaskMessage msg = new TaskMessage(taskId, i, total, chunks.get(i));
             rabbitTemplate.convertAndSend(exchange, routingKey, msg);
         }
         
-        System.out.println("All tasks sent in " + (System.currentTimeMillis() - startTime) + "ms");
+        logger.info("All tasks sent in {}ms", System.currentTimeMillis() - startTime);
     }
 
     private List<String> splitIntoSentences(String text) {
@@ -127,14 +128,14 @@ public class Producer implements CommandLineRunner {
                           try {
                               sb.append(Files.readString(p)).append(" ");
                           } catch (IOException e) {
-                              System.err.println("Error reading file: " + p);
+                              logger.error("Error reading file: {}", p, e);
                           }
                       });
             }
         } else if (Files.isRegularFile(path)) {
             sb.append(Files.readString(path));
         } else {
-            System.err.println("Invalid source path: " + sourcePath);
+            logger.error("Invalid source path: {}", sourcePath);
         }
         return sb.toString();
     }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 
 public class SentenceSortService {
+
     public static List<String> mergeSortedSentences(List<List<String>> lists) {
         List<String> result = new ArrayList<>();
         if (lists == null || lists.isEmpty()) return result;
@@ -16,7 +17,7 @@ public class SentenceSortService {
         );
 
         for (List<String> list : lists) {
-            if (!list.isEmpty()) {
+            if (list != null && !list.isEmpty()) {
                 queue.add(new SentenceIterator(list.iterator()));
             }
         }

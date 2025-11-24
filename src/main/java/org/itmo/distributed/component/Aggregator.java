@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.itmo.distributed.dto.ResultMessage;
 import org.itmo.distributed.service.SentenceSortService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("aggregator")
 public class Aggregator {
+    private static final Logger logger = LoggerFactory.getLogger(Aggregator.class);
     private static final Integer TOP_N = 5;
 
     private final Map<String, AggregatedData> storage = new ConcurrentHashMap<>();
@@ -28,16 +31,13 @@ public class Aggregator {
 
     public Aggregator(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        System.out.println("Initialized aggregator with uuid: " + UUID.randomUUID());
+        logger.info("Initialized aggregator with uuid: {}", UUID.randomUUID());
     }
 
     @RabbitListener(queues = "${app.rabbitmq.queue.results}")
     public void collectResult(ResultMessage result) {
-        System.out.println(
-                "Got result for task with id: " + result.taskId() +
-                "chunk index: " + result.chunkIndex() +
-                "out of: " + result.totalChunks() + "chunks."
-        );
+        logger.info("Got result for task with id: {}, chunk index: {} out of: {} chunks.", 
+                result.taskId(), result.chunkIndex(), result.totalChunks());
 
         if (startTime == 0) {
             startTime = System.currentTimeMillis();
@@ -103,11 +103,9 @@ public class Aggregator {
 
         try {
             String jsonOutput = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(report);
-            System.out.println("===== Final Result JSON =====");
-            System.out.println(jsonOutput);
-            System.out.println("=============================");
+            logger.info("===== Final Result JSON =====\n{}\n=============================", jsonOutput);
         } catch (Exception e) {
-            System.err.println("Error generating JSON report: " + e.getMessage());
+            logger.error("Error generating JSON report", e);
         }
 
         startTime = 0;
