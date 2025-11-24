@@ -1,18 +1,21 @@
 package org.itmo.distributed.component;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.itmo.distributed.dto.ResultMessage;
 import org.itmo.distributed.service.SentenceSortService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 @Profile("aggregator")
@@ -25,10 +28,17 @@ public class Aggregator {
 
     public Aggregator(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        System.out.println("Initialized aggregator with uuid: " + UUID.randomUUID());
     }
 
     @RabbitListener(queues = "${app.rabbitmq.queue.results}")
     public void collectResult(ResultMessage result) {
+        System.out.println(
+                "Got result for task with id: " + result.taskId() +
+                "chunk index: " + result.chunkIndex() +
+                "out of: " + result.totalChunks() + "chunks."
+        );
+
         if (startTime == 0) {
             startTime = System.currentTimeMillis();
         }
@@ -39,7 +49,7 @@ public class Aggregator {
                 data = new AggregatedData();
                 data.totalChunks = result.totalChunks();
             }
-            
+
             data.totalWords += result.wordCount();
             data.totalPositive += result.positiveCount();
             data.totalNegative += result.negativeCount();
@@ -47,19 +57,19 @@ public class Aggregator {
             data.textParts.put(result.chunkIndex(), result.modifiedText());
 
             data.sortedSentenceLists.add(result.sortedSentences());
-            
+
             final AggregatedData finalData = data;
-            result.wordFrequencies().forEach((word, count) -> 
-                finalData.wordFrequency.merge(word, count, Integer::sum)
+            result.wordFrequencies().forEach((word, count) ->
+                    finalData.wordFrequency.merge(word, count, Integer::sum)
             );
-            
+
             int currentCount = data.processedChunks.incrementAndGet();
-            
+
             if (currentCount == data.totalChunks) {
                 finalizeTask(id, data);
                 return null;
             }
-            
+
             return data;
         });
     }
@@ -127,16 +137,16 @@ public class Aggregator {
     }
 
     private record FinalReport(
-        String taskId,
-        long processingTimeMs,
-        long totalWords,
-        SentimentReport sentiment,
-        Map<String, Integer> topNWords,
-        String modifiedText,
-        List<String> sortedSentences
+            String taskId,
+            long processingTimeMs,
+            long totalWords,
+            SentimentReport sentiment,
+            Map<String, Integer> topNWords,
+            String modifiedText,
+            List<String> sortedSentences
     ) {
     }
-    
+
     private record SentimentReport(long positiveSentences, long negativeSentences) {
     }
 }

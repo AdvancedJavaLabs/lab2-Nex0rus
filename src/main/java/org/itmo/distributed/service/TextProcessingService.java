@@ -17,9 +17,11 @@ import edu.stanford.nlp.trees.Tree;
 import edu.stanford.nlp.util.CoreMap;
 import org.itmo.distributed.dto.ResultMessage;
 import org.itmo.distributed.dto.TaskMessage;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
+@Profile("worker")
 public class TextProcessingService {
     private static final String NAMED_ENTITY_TOKEN = "PERSON";
     private static final String NAMED_ENTITY_REPLACEMENT = "[NAME]";

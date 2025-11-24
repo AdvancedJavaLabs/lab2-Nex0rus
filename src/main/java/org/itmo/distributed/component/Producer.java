@@ -44,6 +44,8 @@ public class Producer implements CommandLineRunner {
         Properties props = new Properties();
         props.setProperty("annotators", "tokenize, ssplit");
         this.pipeline = new StanfordCoreNLP(props);
+
+        System.out.println("Initialized producer with uuid: " + UUID.randomUUID());
     }
 
     @Override
