@@ -1,5 +1,6 @@
 package org.itmo.distributed.component;
 
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,8 +103,10 @@ public class Aggregator {
         );
 
         try {
-            String jsonOutput = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(report);
-            logger.info("===== Final Result JSON =====\n{}\n=============================", jsonOutput);
+            File outputFile = new File(taskId + ".json");
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, report);
+            logger.info("Report saved to: {}", outputFile.getAbsolutePath());
+
         } catch (Exception e) {
             logger.error("Error generating JSON report", e);
         }

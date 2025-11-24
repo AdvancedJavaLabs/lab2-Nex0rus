@@ -26,6 +26,9 @@ public class TextProcessingService {
     private static final String NAMED_ENTITY_TOKEN = "PERSON";
     private static final String NAMED_ENTITY_REPLACEMENT = "[NAME]";
 
+    private static final int NEGATIVE_SENTIMENT = 1;
+    private static final int POSITIVE_SENTIMENT = 3;
+
     private final StanfordCoreNLP nlp;
 
     public TextProcessingService() {
@@ -92,9 +95,9 @@ public class TextProcessingService {
             Tree tree = sentence.get(SentimentCoreAnnotations.SentimentAnnotatedTree.class);
             int score = RNNCoreAnnotations.getPredictedClass(tree);
 
-            if (score <= 1) {
+            if (score <= NEGATIVE_SENTIMENT) {
                 negative++;
-            } else if (score >= 3) {
+            } else if (score >= POSITIVE_SENTIMENT) {
                 positive++;
             }
         }

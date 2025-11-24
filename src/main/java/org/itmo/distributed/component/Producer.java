@@ -28,7 +28,7 @@ import java.util.stream.Stream;
 @Profile("producer")
 public class Producer implements CommandLineRunner {
     private static final Logger logger = LoggerFactory.getLogger(Producer.class);
-    private static final int SENTENCES_PER_TASK = 50;
+    private static final int SENTENCES_PER_TASK = 10;
 
     private final RabbitTemplate rabbitTemplate;
     private final ApplicationArguments applicationArguments;
